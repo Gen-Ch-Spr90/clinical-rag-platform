@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: clinical-rag-platform
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/clinicalrag}
+    username: ${POSTGRES_USER:raguser}
+    password: ${POSTGRES_PASSWORD:change-me}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+server:
+  port: ${SERVER_PORT:8081}
+
+rag:
+  embedding:
+    provider: ${EMBEDDING_PROVIDER:mock}
+    dimensions: ${EMBEDDING_DIMENSIONS:1536}
+  chunking:
+    size-tokens: 500
+    overlap-tokens: 50
