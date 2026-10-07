@@ -105,8 +105,6 @@ class DocumentIngestionIT {
         ingestion.ingest(new IngestionRequest("Ortho note", orthoContent, "TEXT", null));
 
         MockEmbeddingProvider provider = new MockEmbeddingProvider(new EmbeddingProperties());
-        System.out.println("Total chunks in DB: " +
-                jdbc.queryForObject("SELECT COUNT(*) FROM chunks", Integer.class)o);
         float[] query = provider.embed("chest pain and heart attack");
 
         var results = chunks.findTopKSimilar(query, 2);
