@@ -1,5 +1,7 @@
 package com.limloch.rag.service;
 
+import com.limloch.rag.embedding.EmbeddingProperties;
+import com.limloch.rag.embedding.MockEmbeddingProvider;
 import com.limloch.rag.repository.ChunkRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +14,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
-
-
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -91,5 +90,39 @@ class DocumentIngestionIT {
         for (int i = 0; i < indices.size(); i++) {
             assertThat(indices.get(i)).isEqualTo(i);
         }
+    }
+
+    @Test
+    void findsMostSimilarChunk() {
+        String cardiologyContent =
+                "Patient presents with chest pain radiating to the left arm. "
+                        + "EKG shows ST elevation. Troponin elevated. Concern for acute MI.";
+        String orthoContent =
+                "Patient reports right knee pain after a fall. X-ray shows no fracture. "
+                        + "Recommend RICE protocol and NSAIDs for pain management.";
+
+        ingestion.ingest(new IngestionRequest("Cardiology note", cardiologyContent, "TEXT", null));
+        ingestion.ingest(new IngestionRequest("Ortho note", orthoContent, "TEXT", null));
+
+        MockEmbeddingProvider provider = new MockEmbeddingProvider(new EmbeddingProperties());
+        System.out.println("Total chunks in DB: " +
+                jdbc.queryForObject("SELECT COUNT(*) FROM chunks", Integer.class)o);
+        float[] query = provider.embed("chest pain and heart attack");
+
+        var results = chunks.findTopKSimilar(query, 2);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).distance()).isLessThanOrEqualTo(results.get(1).distance());
+        assertThat(results.get(0).documentTitle()).isIn("Cardiology note", "Ortho note");
+    }
+
+    @Test
+    void returnsEmptyWhenNoChunksExist() {
+        MockEmbeddingProvider provider = new MockEmbeddingProvider(new EmbeddingProperties());
+        float[] query = provider.embed("anything");
+
+        var results = chunks.findTopKSimilar(query, 5);
+
+        assertThat(results).isEmpty();
     }
 }

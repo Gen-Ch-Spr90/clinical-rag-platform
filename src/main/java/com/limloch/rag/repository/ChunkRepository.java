@@ -56,6 +56,66 @@ public class ChunkRepository {
         return count == null ? 0 : count;
     }
 
+    /**
+     * Returns the top-K chunks most similar to the given query embedding.
+     * Uses pgvector's cosine distance operator (<=>). Lower distance = more similar.
+     *
+     * The parameter is bound as a String and cast to ::vector in SQL. This avoids
+     * a known issue where the pgvector Java client doesn't register the vector
+     * type on pooled Hikari connections, causing parameter binding to silently
+     * fail for SELECT queries.
+     */
+    public List<ScoredChunk> findTopKSimilar(float[] queryEmbedding, int limit) {
+        String vectorLiteral = toVectorLiteral(queryEmbedding);
+
+        String sql = """
+                SELECT c.id,
+                       c.document_id,
+                       c.chunk_index,
+                       c.content,
+                       c.token_count,
+                       c.embedding <=> CAST(? AS vector) AS distance,
+                       d.title AS document_title
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                ORDER BY c.embedding <=> CAST(? AS vector)
+                LIMIT ?
+                """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new ScoredChunk(
+                rs.getLong("id"),
+                rs.getObject("document_id", UUID.class),
+                rs.getString("document_title"),
+                rs.getInt("chunk_index"),
+                rs.getString("content"),
+                rs.getInt("token_count"),
+                rs.getDouble("distance")
+        ), vectorLiteral, vectorLiteral, limit);
+    }
+
+    /** Converts a float array into pgvector's text format: [0.1,0.2,0.3]. */
+    private static String toVectorLiteral(float[] vector) {
+        StringBuilder sb = new StringBuilder(vector.length * 12);
+        sb.append('[');
+        for (int i = 0; i < vector.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(vector[i]);
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    /** A chunk with its similarity score and parent document title. */
+    public record ScoredChunk(
+            long id,
+            UUID documentId,
+            String documentTitle,
+            int chunkIndex,
+            String content,
+            int tokenCount,
+            double distance
+    ) {}
+
     private static class ChunkRowMapper implements RowMapper<Chunk> {
         @Override
         public Chunk mapRow(ResultSet rs, int rowNum) throws SQLException {
