@@ -19,6 +19,13 @@ rag:
   embedding:
     provider: ${EMBEDDING_PROVIDER:mock}
     dimensions: ${EMBEDDING_DIMENSIONS:1536}
+  llm:
+    provider: ${LLM_PROVIDER:mock}
+    max-tokens: 1024
+    temperature: 0.2
   chunking:
     size-tokens: 500
     overlap-tokens: 50
+
+
+
